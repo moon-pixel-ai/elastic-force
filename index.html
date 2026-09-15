@@ -1287,7 +1287,7 @@ function ch3(){
     <canvas class="mini" id="c3" height="270" style="height:270px;"></canvas>
     <div class="row" style="margin-top:8px;">
       <span class="note" id="c3s" style="flex:1;">\u{1F449} 돌멩이를 잡고 왼쪽으로 당겨 봐</span>
-      <span class="note">쏜 횟수 <b id="c3n">0</b> · 최고 <b id="c3r">0</b>칸</span>
+      <span class="note">쏜 횟수 <b id="c3n">0</b>/3 · 최고 <b id="c3r">0</b>칸</span>
     </div>
     <div id="c3q"></div>
   `, ()=>{
@@ -1411,7 +1411,7 @@ function ch3(){
       st.shots++; $("c3n").textContent = st.shots;
       if(rel < 0.42) st.weak = true;
       if(rel > 0.70) st.strong = true;
-      if(st.shots >= 3 && st.weak && st.strong) setTimeout(showQ, 1300);
+      if(st.shots >= 3) setTimeout(showQ, 1300);
     };
     cv.addEventListener("pointerup", release);
     cv.addEventListener("pointercancel", release);
@@ -1460,71 +1460,171 @@ function ch3(){
 }
 
 /* ============================================================
-   4장 · 탄성 한계
+   4장 · 탄성 한계 — 직접 잡고 당겨서 한계를 찾기
    ============================================================ */
 function ch4(){
   openOv("4장 · 얼마나 당겨도 될까?", `
-    <p class="note">용수철을 조금씩 더 당겼다가 <b>놓아</b> 보자. 어느 정도까지는 원래대로 돌아오는데…
-    <b>어디까지</b>일까? 직접 찾아봐.</p>
-    <canvas class="mini" id="c4" height="210" style="height:210px;"></canvas>
-    <div class="row" style="margin-top:10px; align-items:center;">
-      <span class="note" style="font-weight:900;">당긴 길이</span>
-      <input type="range" id="c4r" min="0" max="12" step="1" value="0" style="flex:1; min-width:140px; accent-color:#2f80ed;">
-      <span class="note" style="font-weight:900;"><b id="c4v">0</b> cm</span>
-      <button class="btn sm" id="c4go">손 놓기</button>
-      <button class="btn sm grey" id="c4rs">새 용수철</button>
+    <p class="note"><b>용수철을 손가락으로 잡고 오른쪽으로 당겼다가 놓아</b> 보자.
+    처음엔 놓으면 원래대로 돌아오는데… <b>어디까지</b>일까? 조금씩 더 당겨 가며 직접 찾아봐.</p>
+    <canvas class="mini" id="c4" height="240" style="height:240px;"></canvas>
+    <div class="row" style="margin-top:8px; align-items:center;">
+      <span class="note" id="c4s" style="flex:1;">\u{1F449} 용수철 끝을 잡고 오른쪽으로 당겨 봐</span>
+      <span class="note">지금 <b id="c4v">0</b> cm 늘어남</span>
+      <button class="btn sm grey" id="c4rs">\u{1F504} 새 용수철</button>
     </div>
     <div class="fb" id="c4msg" style="min-height:22px;"></div>
     <div id="c4q"></div>
   `, ()=>{
-    const LIMIT = 7;
-    const st = { pull:0, shown:0, broken:false, rest:0, triedSafe:false, triedOver:false };
-    startMini($("c4"), (c,w,h)=>{
+    const cv = $("c4");
+    const LIMIT = 7, MAXEXT = 12;          // cm
+    const st = { ext:0, perm:0, vel:0, drag:false, grabD:0, flash:0, shake:0,
+                 triedSafe:false, triedOver:false };
+    let geo = { nat:0, ppc:1, y:0, wall:0 };
+
+    startMini(cv, (c,w,h,t,dt)=>{
       c.fillStyle="#f8f9fb"; c.fillRect(0,0,w,h);
-      const y=h*0.50, wallX=w*0.10, natEnd=w*0.46, unit=w*0.035;
-      const target = natEnd + (st.pull + st.rest)*unit;
-      st.shown += (target - st.shown)*0.22;
-      if(st.shown===0) st.shown = natEnd;
+      const y = h*0.42, wall = w*0.08, nat = w*0.28;
+      const ppc = Math.min(26, (w*0.62)/MAXEXT);
+      geo = { nat, ppc, y, wall };
 
-      c.fillStyle="#b0a08c"; c.fillRect(wallX-16, h*0.10, 16, h*0.80);
-      c.save(); c.setLineDash([5,5]); c.strokeStyle="#c9bdaa"; c.lineWidth=2;
-      c.beginPath(); c.moveTo(natEnd, h*0.12); c.lineTo(natEnd, h*0.88); c.stroke();
-      c.strokeStyle="rgba(224,79,79,.55)";
-      c.beginPath(); c.moveTo(natEnd+LIMIT*unit, h*0.12); c.lineTo(natEnd+LIMIT*unit, h*0.88); c.stroke();
-      c.restore();
-      c.fillStyle="#a2937f"; c.font="900 11px system-ui"; c.textAlign="center"; c.textBaseline="top";
-      c.fillText("처음 길이", natEnd, h*0.89);
-      if(st.broken || st.triedOver){ c.fillStyle="#e04f4f"; c.fillText("탄성 한계", natEnd+LIMIT*unit, h*0.89); }
-
-      coil(c, wallX, st.shown, y, st.broken?6:12, st.broken?6:Math.max(5, 11 - (st.pull+st.rest)*0.45),
-           st.broken ? "#c06a6a" : "#7c8798", 5);
-      c.fillStyle= st.broken?"#a85555":"#5b6572"; rr(c, st.shown-4, y-22, 11, 44, 4); c.fill();
-      c.font="26px system-ui"; c.textAlign="center"; c.textBaseline="middle";
-      if(st.pull>0) c.fillText("\u{1F90F}", st.shown+28, y);
-      if(st.broken){
-        c.font="900 15px system-ui"; c.fillStyle="#e04f4f"; c.textBaseline="bottom"; c.textAlign="center";
-        c.fillText("\u{1F635} 늘어난 채로 돌아오지 않는다!", w/2, h*0.20);
-        arrow(c, natEnd, y+56, st.shown, y+56, "#e04f4f", 2.5, "돌아오지 못한 길이");
+      if(!st.drag){                         // 손을 떼면 영구 변형된 길이까지만 복귀
+        st.vel += (st.perm - st.ext) * 560 * dt;
+        st.vel *= Math.pow(0.0012, dt);
+        st.ext += st.vel * dt;
+        if(Math.abs(st.ext - st.perm) < 0.02 && Math.abs(st.vel) < 0.3){ st.ext = st.perm; st.vel = 0; }
       }
+      st.ext = Math.max(0, Math.min(MAXEXT, st.ext));
+      const over = st.ext > LIMIT;
+      const damaged = st.perm > 0.05;
+      const endX = nat + st.ext*ppc;
+      if(st.flash > 0) st.flash -= dt;
+      if(st.shake > 0) st.shake -= dt;
+      const sh = st.shake > 0 ? Math.sin(t*0.09)*3*(st.shake/0.4) : 0;
+
+      /* 벽 */
+      c.fillStyle="#b0a08c"; c.fillRect(wall-16, h*0.10, 16, h*0.72);
+      c.strokeStyle="#8d7c68"; c.lineWidth=2;
+      for(let i=0;i<6;i++){ c.beginPath(); c.moveTo(wall-16, h*0.10+i*h*0.12); c.lineTo(wall, h*0.10+i*h*0.12+10); c.stroke(); }
+
+      /* 자 */
+      const ry = h*0.68;
+      c.fillStyle="#fff7df"; rr(c, nat-10, ry, MAXEXT*ppc+20, 24, 4); c.fill();
+      c.strokeStyle="#d8c69c"; c.lineWidth=1.5; rr(c, nat-10, ry, MAXEXT*ppc+20, 24, 4); c.stroke();
+      c.strokeStyle="#6b5a48"; c.fillStyle="#6b5a48"; c.font="700 9px system-ui"; c.textAlign="center"; c.textBaseline="top";
+      for(let cm=0; cm<=MAXEXT; cm++){
+        const gx = nat + cm*ppc, big = cm%5===0;
+        c.lineWidth = big?1.6:0.9;
+        c.beginPath(); c.moveTo(gx, ry+1); c.lineTo(gx, ry + (big?10:6)); c.stroke();
+        if(big) c.fillText(cm, gx, ry+11);
+      }
+
+      /* 처음 길이 */
+      c.save(); c.setLineDash([5,5]); c.strokeStyle="#c9bdaa"; c.lineWidth=2;
+      c.beginPath(); c.moveTo(nat, h*0.13); c.lineTo(nat, ry); c.stroke(); c.restore();
+      c.fillStyle="#a2937f"; c.font="900 11px system-ui"; c.textAlign="center"; c.textBaseline="top";
+      c.fillText("처음 길이", nat, ry+26);
+
+      /* 탄성 한계선 — 넘어서 망가뜨린 뒤에야 보인다 */
+      if(st.triedOver){
+        c.save(); c.setLineDash([6,4]); c.strokeStyle="rgba(224,79,79,.6)"; c.lineWidth=2.5;
+        c.beginPath(); c.moveTo(nat+LIMIT*ppc, h*0.13); c.lineTo(nat+LIMIT*ppc, ry); c.stroke(); c.restore();
+        c.fillStyle="#e04f4f"; c.font="900 11px system-ui"; c.textAlign="center"; c.textBaseline="top";
+        c.fillText("탄성 한계", nat+LIMIT*ppc, ry+26);
+      }
+      /* 영구 변형된 새 길이 */
+      if(damaged){
+        c.save(); c.setLineDash([3,4]); c.strokeStyle="rgba(150,110,90,.65)"; c.lineWidth=2;
+        c.beginPath(); c.moveTo(nat+st.perm*ppc, y+28); c.lineTo(nat+st.perm*ppc, ry); c.stroke(); c.restore();
+      }
+
+      /* 용수철 — 한계를 넘으면 코일이 풀려 성겨지고 색이 바랜다 */
+      /* 코일 개수는 절대 변하지 않는다 — 늘어나면 간격만 벌어지고 납작해진다 */
+      const turns  = 11;
+      const amp    = Math.max(6.5, 13 - st.ext*0.32 - st.perm*0.35);
+      const col    = damaged ? "#b98a80" : (over ? "#cf8b7f" : "#7c8798");
+      const lw     = Math.max(2.6, 5 - (over ? (st.ext-LIMIT)*0.22 : 0) - st.perm*0.12);
+      coil(c, wall, endX, y + sh, amp, turns, col, lw);
+
+      /* 끝 손잡이 */
+      c.fillStyle = st.drag ? "#41506b" : (damaged ? "#9b7268" : "#5b6572");
+      rr(c, endX-5, y-24+sh, 14, 48, 5); c.fill();
+      c.font = "28px system-ui"; c.textAlign="center"; c.textBaseline="middle";
+      if(st.drag) c.fillText("\u{1F90F}", endX + 32, y + sh);
+
+      /* 안내 문구 */
+      c.textAlign="center"; c.textBaseline="top";
+      if(st.drag && over){
+        c.fillStyle="#e04f4f"; c.font="900 15px system-ui";
+        c.fillText("⚠ 뚜둑… 뭔가 늘어나고 있어!", w*0.5, h*0.03);
+      } else if(st.flash > 0){
+        c.fillStyle="#e04f4f"; c.font="900 16px system-ui";
+        c.fillText("\u{1F62B} 뚜둑!", w*0.5, h*0.03);
+      } else if(damaged && !st.drag){
+        c.fillStyle="#b06a5a"; c.font="900 14px system-ui";
+        c.fillText("\u{1F635} 코일이 퍼져서 원래 길이로 돌아오지 못한다", w*0.5, h*0.03);
+      }
+
+      /* 돌아오지 못한 길이 */
+      if(damaged && !st.drag && Math.abs(st.ext-st.perm) < 0.3){
+        arrow(c, nat, y+46, nat+st.perm*ppc, y+46, "#e04f4f", 2.5, "돌아오지 못한 길이");
+      }
+
+      $("c4v").textContent = st.ext.toFixed(1);
     });
-    $("c4r").oninput = e => { if(st.broken) return; st.pull = +e.target.value; $("c4v").textContent = st.pull; };
-    $("c4go").onclick = ()=>{
-      if(st.broken) return;
-      const total = st.pull + st.rest;
-      if(total <= LIMIT){
+
+    function onSpring(cx, cy){
+      const r = cv.getBoundingClientRect();
+      const x = cx - r.left, yy = cy - r.top;
+      return x > geo.wall - 10 && x < geo.nat + st.ext*geo.ppc + 56 && Math.abs(yy - geo.y) < r.height*0.30;
+    }
+    cv.addEventListener("pointerdown", e=>{
+      if(!onSpring(e.clientX, e.clientY)) return;
+      e.preventDefault(); try{ cv.setPointerCapture(e.pointerId); }catch(_){}
+      st.drag = true; st.vel = 0;
+      $("c4msg").className="fb"; $("c4msg").textContent="";
+      const maxPx0 = MAXEXT*geo.ppc;
+      st.grabD = e.clientX - softInv(st.ext*geo.ppc, maxPx0, maxPx0*0.70);
+    });
+    cv.addEventListener("pointermove", e=>{
+      if(!st.drag) return;
+      e.preventDefault();
+      const d = Math.max(0, e.clientX - st.grabD);
+      const maxPx = MAXEXT*geo.ppc;
+      const want = softPull(d, maxPx, maxPx*0.70) / geo.ppc;   // px 로 계산한 뒤 cm 로
+      const wasDamaged = st.perm > 0.05;
+      st.ext = Math.max(st.perm, want);
+      if(st.ext > LIMIT){
+        st.perm = Math.max(st.perm, (st.ext - LIMIT) * 0.62);   // 한계를 넘은 만큼 영구히 퍼진다
+        if(!wasDamaged && st.perm > 0.05){ st.flash = 0.6; st.shake = 0.4; }
+      }
+      $("c4s").textContent = st.ext > LIMIT ? "한계를 넘겼어! 코일이 퍼지는 중…" : "당기는 중 — 손을 떼면 어떻게 될까?";
+    });
+    const release = ()=>{
+      if(!st.drag) return;
+      st.drag = false;
+      const was = st.ext;
+      if(st.perm > 0.05){
+        if(!st.triedOver){
+          st.triedOver = true;
+          $("c4msg").className="fb no";
+          $("c4msg").innerHTML = "❌ " + was.toFixed(1) + "cm까지 당겼더니 <b>코일이 퍼져서 원래 길이로 돌아오지 못해.</b> 이제 이 용수철의 ‘처음 길이’가 달라졌어.";
+        }
+        $("c4s").textContent = "새 용수철로 바꿔서 적당히만 당겨 보자";
+      } else if(was > 0.6){
         st.triedSafe = true;
-        $("c4msg").className="fb ok"; $("c4msg").innerHTML = "✅ " + total + "cm 당겼다가 놓으니 <b>원래 모양으로 돌아왔다.</b>";
-        st.pull = 0; $("c4r").value = 0; $("c4v").textContent = 0;
-      } else {
-        st.triedOver = true; st.broken = true; st.rest = 4;  st.pull = 0;
-        $("c4r").value=0; $("c4v").textContent=0;
-        $("c4msg").className="fb no"; $("c4msg").innerHTML = "❌ " + total + "cm는 너무 많이 당겼어! 용수철이 <b>늘어난 채 그대로</b>야.";
+        $("c4msg").className="fb ok";
+        $("c4msg").innerHTML = "✅ " + was.toFixed(1) + "cm 당겼다가 놓으니 <b>원래 길이로 완전히 돌아왔다.</b> 더 당겨 볼까?";
+        $("c4s").textContent = "조금씩 더 당겨 보며 한계를 찾아봐";
       }
       if(st.triedSafe && st.triedOver) showQ();
     };
+    cv.addEventListener("pointerup", release);
+    cv.addEventListener("pointercancel", release);
+
     $("c4rs").onclick = ()=>{
-      st.broken=false; st.rest=0; st.pull=0; $("c4r").value=0; $("c4v").textContent=0;
-      $("c4msg").className="fb"; $("c4msg").textContent="새 용수철로 바꿨어.";
+      st.perm = 0; st.ext = 0; st.vel = 0; st.flash = 0;
+      $("c4msg").className="fb"; $("c4msg").textContent = "새 용수철로 바꿨어.";
+      $("c4s").textContent = "\u{1F449} 용수철 끝을 잡고 오른쪽으로 당겨 봐";
     };
 
     let done=false;
@@ -1532,8 +1632,8 @@ function ch4(){
       if(done) return; done=true;
       const m=$("c4q");
       m.innerHTML = `<div class="sumbox"><h3>알아낸 것</h3><ul>
-        <li>어느 정도까지 당기면 → <b>원래 모양으로 돌아온다</b></li>
-        <li>그보다 더 세게 당기면 → <b>돌아오지 않는다</b></li>
+        <li>어느 정도까지 당겼다 놓으면 → <b>원래 길이로 돌아온다</b></li>
+        <li>그보다 더 당기면 <b>코일이 퍼져</b> → <b>돌아오지 않는다</b></li>
         <li>그 경계를 <b>탄성 한계</b>라고 해.</li></ul></div>`;
       const g = gate(2, ()=> nb.disabled=false);
       mkQuiz(m, {
